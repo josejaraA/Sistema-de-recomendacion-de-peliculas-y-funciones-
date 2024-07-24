@@ -1,0 +1,14 @@
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Entorno virtual
+venv/
+.venv/
+
+# Archivos de configuración locales
+.env
+secret_key
+
+# Archivos de base de datos locales
+db.sqlite3
