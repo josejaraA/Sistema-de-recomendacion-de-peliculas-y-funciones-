@@ -2,7 +2,12 @@ from fastapi import FastAPI
 import pandas as pd
 import json 
 import ast
-from fastapi import HTTPException
+import uvicorn
+
+
+if __name__ == "__main__":
+    port = int(os.getenv("PORT", 8000))  # Usa el puerto por defecto 8000 si PORT no está disponible
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 app = FastAPI()
 
