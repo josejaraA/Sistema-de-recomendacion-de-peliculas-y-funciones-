@@ -21,7 +21,7 @@ peliculas['release_day'] = peliculas['release_date'].apply(lambda x: dias_espano
 
 ### Funcion que te permite obetener el numero de filmaciones estrenadas cierto mes
 
-@app.get('/cantidad-filmaciones/{mes}')
+@app.get('/cantidad-filmaciones1/{mes}')
 def cantidad_filmaciones_mes(mes:str):
     cantidad = peliculas['release month'].value_counts().get(mes,0)
     texto = '{0} Películas fueron estrenadas en el mes de {1}'.format(cantidad,mes)
@@ -29,7 +29,7 @@ def cantidad_filmaciones_mes(mes:str):
 
 ### Funcion que te permite obtener el numero de filmacion estrenadas cierto dia
 
-@app.get('/cantidad-filmaciones/{dia}')
+@app.get('/cantidad-filmaciones2/{dia}')
 def cantidad_filmaciones_dia(dia:str):
     cantidad = peliculas['release_day'].value_counts().get(dia,0)
     texto = '{} Películas fueron estrenadas el dia {}'.format(cantidad, dia)
