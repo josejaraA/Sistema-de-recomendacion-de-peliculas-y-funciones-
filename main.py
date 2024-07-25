@@ -71,7 +71,7 @@ def votos_titulo(peli):
     return texto 
 
 
-data_set = pd.read_csv('Union.csv')
+data_set = pd.read_csv('Dataset_limpio.csv')
 
 
 # Función para extraer los nombres de los actores del campo 'cast'
@@ -109,15 +109,7 @@ def get_actor(nombre):
     return texto
 
 
-#Esta funcion opbtiene los nombres de los directores
 
-def obtener_nombres_directores(cadena_crew):
-    try:
-        crew_list = json.loads(cadena_crew.replace("'", "\""))
-        return [persona['name'] for persona in crew_list if persona['job'] == 'Director']
-    except json.JSONDecodeError:
-        return []
-data_set['Directores'] = data_set['crew'].apply(obtener_nombres_directores)
 
 
 ### Esta funcion obtiene el retorno generado por un director, ademas devuelve el nombre de cada pelicula en la que ha trabajado, incluyendo fecha de lanzamiento retorno individual , costo y ganancia
