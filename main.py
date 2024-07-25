@@ -69,3 +69,68 @@ def votos_titulo(peli):
     texto = 'La Pelicula {0} fue estrenada en el año {1} con un total de {2} votaciones y un promedio de {3}'.format(peli,f_lanzamiento,votos,avg_votos)
     
     return texto 
+
+
+data_set = pd.read_csv('Union.csv')
+
+
+# Función para extraer los nombres de los actores del campo 'cast'
+def obtener_nombres_actores(cadena_cast):
+    try:
+        cast_list = json.loads(cadena_cast.replace("'", "\""))
+        return [actor['name'] for actor in cast_list]
+    except json.JSONDecodeError:
+        return []
+
+# Aplicar la función para obtener una columna con los nombres de los actores
+data_set['actores'] = data_set['cast'].apply(obtener_nombres_actores)
+
+# Expandir la lista de actores en filas separadas
+df_actores = data_set.explode('actores')
+
+### Esta funcion recibe el nombre del actor obtiene la cantidad de películas en las que ha participado y el promedio de retorno.
+
+@app.get('/actores/{nombre}')
+
+def get_actor(nombre):
+
+    peliculas_actor = df_actores[df_actores['actores'] == nombre]
+
+    dimensiones = peliculas_actor.shape
+
+    num_pelis = dimensiones[0]
+
+    retorno_total = peliculas_actor['revenue'].sum()
+
+    promedio_retorno = peliculas_actor['revenue'].mean()
+
+    texto = 'El actor {0} ha participado de {1} cantidad de peliculas, el mimso ha conseguido un retorno de {2} con un promedio {3} por filamcion'.format(nombre,num_pelis,retorno_total,promedio_retorno)
+
+    return texto
+
+
+#Esta funcion opbtiene los nombres de los directores
+
+def obtener_nombres_directores(cadena_crew):
+    try:
+        crew_list = json.loads(cadena_crew.replace("'", "\""))
+        return [persona['name'] for persona in crew_list if persona['job'] == 'Director']
+    except json.JSONDecodeError:
+        return []
+data_set['Directores'] = data_set['crew'].apply(obtener_nombres_directores)
+
+
+### Esta funcion obtiene el retorno generado por un director, ademas devuelve el nombre de cada pelicula en la que ha trabajado, incluyendo fecha de lanzamiento retorno individual , costo y ganancia
+
+@app.get('/director-films/{director}')
+def get_director(director):
+    df_director = data_set[data_set['Directores'].apply(lambda x: director in x)]
+    dimensiones = df_director.shape
+    cantidad = dimensiones[0]
+    cantidad = int(cantidad)
+    df_director['budget'] = pd.to_numeric(df_director['budget'], errors='coerce').fillna(0).astype(int)
+    df_director['revenue'] = pd.to_numeric(df_director['revenue'], errors='coerce').fillna(0).astype(int)
+    df_director['release_date'] = pd.to_datetime(df_director['release_date'], errors='coerce')
+    texto = 'El numero de peliculas en las que el director a trabajado es: {0}'.format(cantidad)
+    resultado = df_director[['title', 'release_date', 'budget', 'revenue']].to_dict(orient='records')
+    return texto, resultado
