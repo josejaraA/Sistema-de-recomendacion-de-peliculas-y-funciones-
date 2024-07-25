@@ -12,3 +12,4 @@ secret_key
 
 # Archivos de base de datos locales
 db.sqlite3
+Union.csv
