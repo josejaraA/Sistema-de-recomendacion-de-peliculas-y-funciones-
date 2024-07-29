@@ -3,26 +3,17 @@ import pandas as pd
 import json 
 import ast
 import uvicorn
-
-
-if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))  # Usa el puerto por defecto 8000 si PORT no está disponible
-    uvicorn.run(app, host="0.0.0.0", port=port)
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.neighbors import NearestNeighbors
+from fastapi import FastAPI, HTTPException
 
 app = FastAPI()
 
-peliculas = pd.read_csv('movies_dataset_desanidada.csv')
+peliculas = pd.read_csv("Dataset_LimpioV.csv")
 
-# Conversion de release date a datetime
-peliculas['release_date'] = pd.to_datetime(peliculas['release_date'], errors='coerce')
 
-# Nueva columna para el mes de estreno
-meses_espanol = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
-peliculas['release month'] = peliculas['release_date'].apply(lambda x: meses_espanol[x.month-1] if pd.notnull(x) else None)
-
-# Nueva columna para el dia de estreno
-dias_espanol = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo']
-peliculas['release_day'] = peliculas['release_date'].apply(lambda x: dias_espanol[x.weekday()] if pd.notnull(x) else None)
+#Limpiar datos nulos
+peliculas['overview'] = peliculas['overview'].fillna('')
 
 ### Funcion que te permite obetener el numero de filmaciones estrenadas cierto mes
 
@@ -41,6 +32,7 @@ def cantidad_filmaciones_dia(dia:str):
     return texto
 
 ### Funcion que al ingresar el titulo de una pelicula te permite conseguir el título, el año de estreno y el score.
+peliculas['release_date'] = pd.to_datetime(peliculas['release_date'], errors='coerce')
 
 @app.get('/score-Peliculas/{peli}')
 def score_titulo(peli):
@@ -71,25 +63,11 @@ def votos_titulo(peli):
     return texto 
 
 
-data_set = pd.read_csv('Dataset_limpio.csv')
-
-
-# Función para extraer los nombres de los actores del campo 'cast'
-def obtener_nombres_actores(cadena_cast):
-    try:
-        cast_list = json.loads(cadena_cast.replace("'", "\""))
-        return [actor['name'] for actor in cast_list]
-    except json.JSONDecodeError:
-        return []
-
-# Aplicar la función para obtener una columna con los nombres de los actores
-data_set['actores'] = data_set['cast'].apply(obtener_nombres_actores)
-
 # Expandir la lista de actores en filas separadas
-df_actores = data_set.explode('actores')
+df_actores = peliculas.explode('actores')
 
 ### Esta funcion recibe el nombre del actor obtiene la cantidad de películas en las que ha participado y el promedio de retorno.
-
+peliculas['actores'] = peliculas['actores'].apply(ast.literal_eval)
 @app.get('/actores/{nombre}')
 
 def get_actor(nombre):
@@ -104,11 +82,9 @@ def get_actor(nombre):
 
     promedio_retorno = peliculas_actor['revenue'].mean()
 
-    texto = 'El actor {0} ha participado de {1} cantidad de peliculas, el mimso ha conseguido un retorno de {2} con un promedio {3} por filamcion'.format(nombre,num_pelis,retorno_total,promedio_retorno)
+    texto = 'El actor {0} ha participado en {1} peliculas, el mimso ha conseguido un retorno de {2} con un promedio {3} por filamcion'.format(nombre,num_pelis,retorno_total,promedio_retorno)
 
     return texto
-
-
 
 
 
@@ -116,13 +92,62 @@ def get_actor(nombre):
 
 @app.get('/director-films/{director}')
 def get_director(director):
-    df_director = data_set[data_set['Directores'].apply(lambda x: director in x)]
+
+        # Asegúrate de que las listas de directores estén en el formato correcto
+    peliculas['Directores'] = peliculas['Directores'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
+    
+    # Filtra las películas por el director
+    df_director = peliculas[peliculas['Directores'].apply(lambda x: director in x if x else False)]
+
     dimensiones = df_director.shape
     cantidad = dimensiones[0]
     cantidad = int(cantidad)
     df_director['budget'] = pd.to_numeric(df_director['budget'], errors='coerce').fillna(0).astype(int)
     df_director['revenue'] = pd.to_numeric(df_director['revenue'], errors='coerce').fillna(0).astype(int)
-    df_director['release_date'] = pd.to_datetime(df_director['release_date'], errors='coerce')
     texto = 'El numero de peliculas en las que el director a trabajado es: {0}'.format(cantidad)
     resultado = df_director[['title', 'release_date', 'budget', 'revenue']].to_dict(orient='records')
     return texto, resultado
+
+
+
+# Filtracion de datos
+peliculas_filtradas = peliculas[peliculas['vote_average'] > 5]
+peliculas_filtradas = peliculas_filtradas[peliculas_filtradas['original_language'] == 'en']
+peliculas_filtradas = peliculas_filtradas.drop_duplicates(subset='title')
+peliculas_filtradas.reset_index(drop=True, inplace=True)
+
+
+# Combinar características relevantes
+def combinar_caracteristicas(row):
+    return f"{row['genres']} {row['overview']} {row['tagline']} {row['production_companies']} {row['actores']}"
+peliculas_filtradas['combined_features'] = peliculas_filtradas.apply(combinar_caracteristicas, axis=1)
+
+# Vectorización TF-IDF
+tfidf = TfidfVectorizer(stop_words='english')
+tfidf_matrix = tfidf.fit_transform(peliculas_filtradas['combined_features'])
+
+# Modelo K-Vecinos
+knn = NearestNeighbors(metric='cosine', algorithm='brute')
+knn.fit(tfidf_matrix)
+
+# Mapeo de títulos a índices
+indices = pd.Series(peliculas_filtradas.index, index=peliculas_filtradas['title']).drop_duplicates()
+
+# Función de recomendación
+def obtener_recomendaciones_knn(titulo, n_recommendations=6):
+    if titulo not in indices:
+        raise HTTPException(status_code=404, detail="Película no encontrada")
+    
+    idx = indices[titulo]
+    distances, indices_knn = knn.kneighbors(tfidf_matrix[idx], n_neighbors=n_recommendations)
+    similar_movies = peliculas_filtradas.iloc[indices_knn[0][1:]]['title']
+    
+    return similar_movies.tolist()
+
+@app.get('/Recomendaciones/{titulo}')
+def recomendaciones(titulo: str):
+    try:
+        recomendaciones_knn = obtener_recomendaciones_knn(titulo)
+        return recomendaciones_knn
+    except HTTPException as e:
+        return {"Pelicula no encontrada"}
