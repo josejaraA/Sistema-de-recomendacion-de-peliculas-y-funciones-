@@ -64,10 +64,11 @@ def votos_titulo(peli):
 
 
 # Expandir la lista de actores en filas separadas
+peliculas['actores'] = peliculas['actores'].apply(ast.literal_eval)
 df_actores = peliculas.explode('actores')
 
 ### Esta funcion recibe el nombre del actor obtiene la cantidad de películas en las que ha participado y el promedio de retorno.
-peliculas['actores'] = peliculas['actores'].apply(ast.literal_eval)
+
 @app.get('/actores/{nombre}')
 
 def get_actor(nombre):
