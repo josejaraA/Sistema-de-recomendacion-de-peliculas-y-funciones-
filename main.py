@@ -94,7 +94,7 @@ def get_actor(nombre):
 @app.get('/director-films/{director}')
 def get_director(director):
 
-        # Asegúrate de que las listas de directores estén en el formato correcto
+       
     peliculas['Directores'] = peliculas['Directores'].apply(lambda x: ast.literal_eval(x) if isinstance(x, str) else x)
     
     # Filtra las películas por el director
@@ -120,12 +120,12 @@ peliculas_filtradas.reset_index(drop=True, inplace=True)
 
 # Combinar características relevantes
 def combinar_caracteristicas(row):
-    return f"{row['genres']} {row['overview']} {row['tagline']} {row['production_companies']} {row['actores']}"
-peliculas_filtradas['combined_features'] = peliculas_filtradas.apply(combinar_caracteristicas, axis=1)
+    return f"{row['genres']} {row['overview']} {row['production_companies']} {row['actores']}"
+peliculas_filtradas['caracteristicas_combinadas'] = peliculas_filtradas.apply(combinar_caracteristicas, axis=1)
 
 # Vectorización TF-IDF
 tfidf = TfidfVectorizer(stop_words='english')
-tfidf_matrix = tfidf.fit_transform(peliculas_filtradas['combined_features'])
+tfidf_matrix = tfidf.fit_transform(peliculas_filtradas['caracteristicas_combinadas'])
 
 # Modelo K-Vecinos
 knn = NearestNeighbors(metric='cosine', algorithm='brute')
@@ -135,15 +135,15 @@ knn.fit(tfidf_matrix)
 indices = pd.Series(peliculas_filtradas.index, index=peliculas_filtradas['title']).drop_duplicates()
 
 # Función de recomendación
-def obtener_recomendaciones_knn(titulo, n_recommendations=6):
+def obtener_recomendaciones_knn(titulo, n_recommendaciones=6):
     if titulo not in indices:
         raise HTTPException(status_code=404, detail="Película no encontrada")
     
     idx = indices[titulo]
-    distances, indices_knn = knn.kneighbors(tfidf_matrix[idx], n_neighbors=n_recommendations)
-    similar_movies = peliculas_filtradas.iloc[indices_knn[0][1:]]['title']
+    distan, indices_knn = knn.kneighbors(tfidf_matrix[idx], n_neighbors=n_recommendaciones)
+    pelis_similares = peliculas_filtradas.iloc[indices_knn[0][1:]]['title']
     
-    return similar_movies.tolist()
+    return pelis_similares.tolist()
 
 @app.get('/Recomendaciones/{titulo}')
 def recomendaciones(titulo: str):
@@ -151,4 +151,4 @@ def recomendaciones(titulo: str):
         recomendaciones_knn = obtener_recomendaciones_knn(titulo)
         return recomendaciones_knn
     except HTTPException as e:
-        return {"Pelicula no encontrada"}
+        return {"Película no encontrada"}
